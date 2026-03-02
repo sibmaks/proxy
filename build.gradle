@@ -1,9 +1,21 @@
 plugins {
     id 'java'
+    id 'application'
 }
 
 group = 'io.github.sibmaks'
 version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+application {
+    // по умолчанию не важно, запускать будем mainClass через --args
+    mainClass = 'io.github.sibmaks.ClientProxy'
+}
 
 repositories {
     mavenCentral()
