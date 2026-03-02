@@ -21,6 +21,29 @@ import static io.github.sibmaks.HopByHopHeaders.HOP_BY_HOP;
 
 public class RemoteProxyServer {
 
+    private static void handleHealth(HttpExchange ex) throws IOException {
+        Log.info("SERVER", "Incoming healthcheck " + ex.getRequestMethod() + " " + ex.getRequestURI());
+        try {
+            if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
+                ex.sendResponseHeaders(405, -1);
+                return;
+            }
+
+            String marker = firstHeader(ex.getRequestHeaders(), "X-Proxy-Healthcheck");
+            Log.info("SERVER", "Healthcheck marker = " + (marker == null ? "<missing>" : marker));
+
+            byte[] body = "pong".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            ex.sendResponseHeaders(200, body.length);
+            try (OutputStream os = ex.getResponseBody()) {
+                os.write(body);
+            }
+            Log.info("SERVER", "Healthcheck exchange successful: ping -> pong");
+        } finally {
+            ex.close();
+        }
+    }
+
     private static void handleProxy(HttpExchange ex, HttpClient httpClient) throws IOException {
         Log.info("SERVER", "Incoming " + ex.getRequestMethod() + " " + ex.getRequestURI());
         ex.getRequestHeaders().forEach((k,v) -> Log.info("SERVER", "  H: " + k + " = " + v));
@@ -135,6 +158,7 @@ public class RemoteProxyServer {
 
         HttpServer server = HttpServer.create(new InetSocketAddress(listenPort), 0);
         server.createContext("/proxy", ex -> handleProxy(ex, httpClient));
+        server.createContext("/health", RemoteProxyServer::handleHealth);
         server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
         server.start();
 

@@ -18,6 +18,29 @@ import static io.github.sibmaks.HopByHopHeaders.HOP_BY_HOP;
 
 public class ClientProxy {
 
+    private static void runRelayHealthcheck(HttpClient httpClient, URI healthUri) {
+        try {
+            Log.info("CLIENT", "Sending healthcheck ping to " + healthUri);
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(healthUri)
+                    .timeout(Duration.ofSeconds(10))
+                    .header("X-Proxy-Healthcheck", "client-proxy")
+                    .GET()
+                    .build();
+
+            HttpResponse<byte[]> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
+            String body = new String(resp.body() == null ? new byte[0] : resp.body(), java.nio.charset.StandardCharsets.UTF_8);
+            if (resp.statusCode() == 200 && "pong".equals(body)) {
+                Log.info("CLIENT", "Healthcheck exchange successful: ping -> pong");
+                return;
+            }
+
+            Log.error("CLIENT", "Healthcheck failed: status=" + resp.statusCode() + ", body=" + body, null);
+        } catch (Exception err) {
+            Log.error("CLIENT", "Healthcheck request failed", err);
+        }
+    }
+
     private static void handleIncomingProxyRequest(HttpExchange ex, HttpClient httpClient, URI relayUri) throws IOException {
         try {
             String method = ex.getRequestMethod();
@@ -171,6 +194,7 @@ public class ClientProxy {
         int serverPort = getIntArg(args, "--serverPort", 9000);
 
         URI relayUri = URI.create("http://" + serverHost + ":" + serverPort + "/proxy");
+        URI healthUri = URI.create("http://" + serverHost + ":" + serverPort + "/health");
 
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(20))
@@ -184,5 +208,6 @@ public class ClientProxy {
         System.out.println("ClientProxy listening on http://127.0.0.1:" + listenPort);
         System.out.println("Forwarding to RemoteProxyServer at " + relayUri);
         System.out.println("Configure your app/browser to use HTTP proxy 127.0.0.1:" + listenPort);
+        runRelayHealthcheck(httpClient, healthUri);
     }
 }
