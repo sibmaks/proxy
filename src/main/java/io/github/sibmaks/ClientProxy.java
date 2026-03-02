@@ -22,9 +22,21 @@ public class ClientProxy {
         try {
             String method = ex.getRequestMethod();
 
-            // CONNECT не поддерживаем в этом минимальном варианте
+            Log.info("CLIENT", "Incoming " + method + " " + ex.getRequestURI());
+            Log.info("CLIENT", "Remote relay = " + relayUri);
+            ex.getRequestHeaders().forEach((k,v) -> Log.info("CLIENT", "  H: " + k + " = " + v));
+
             if ("CONNECT".equalsIgnoreCase(method)) {
-                ex.sendResponseHeaders(501, -1);
+                // IDEA почти наверняка делает CONNECT для HTTPS
+                String body = "CONNECT is not supported by this proxy build.\n" +
+                        "IDEA uses CONNECT for HTTPS, so proxy will not work until CONNECT tunneling is implemented.\n";
+                byte[] bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+                ex.sendResponseHeaders(501, bytes.length);
+                try (OutputStream os = ex.getResponseBody()) {
+                    os.write(bytes);
+                }
+                Log.info("CLIENT", "Responded 501 to CONNECT " + ex.getRequestURI());
                 return;
             }
 
@@ -59,6 +71,9 @@ public class ClientProxy {
             byte[] body = ex.getRequestBody().readAllBytes();
             byte[] encodedReq = ProxyCodec.encodeRequest(method, targetUrl, filteredHeaders, body);
 
+            Log.info("CLIENT", "Target URL = " + targetUrl);
+            Log.info("CLIENT", "Body bytes = " + body.length);
+
             HttpRequest relayReq = HttpRequest.newBuilder()
                     .uri(relayUri)
                     .timeout(Duration.ofSeconds(90))
@@ -67,6 +82,9 @@ public class ClientProxy {
                     .build();
 
             HttpResponse<byte[]> relayResp = httpClient.send(relayReq, HttpResponse.BodyHandlers.ofByteArray());
+
+            Log.info("CLIENT", "Relay response status = " + relayResp.statusCode() +
+                    ", bytes=" + (relayResp.body() == null ? 0 : relayResp.body().length));
 
             if (relayResp.statusCode() != 200) {
                 // сервер вернул ошибку текстом
@@ -103,6 +121,7 @@ public class ClientProxy {
             }
 
         } catch (Exception err) {
+            Log.error("CLIENT", "Proxy error", err);
             ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
             byte[] msg = ("Proxy error: " + err.getClass().getSimpleName() + ": " + err.getMessage())
                     .getBytes(java.nio.charset.StandardCharsets.UTF_8);

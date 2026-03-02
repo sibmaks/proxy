@@ -22,6 +22,8 @@ import static io.github.sibmaks.HopByHopHeaders.HOP_BY_HOP;
 public class RemoteProxyServer {
 
     private static void handleProxy(HttpExchange ex, HttpClient httpClient) throws IOException {
+        Log.info("SERVER", "Incoming " + ex.getRequestMethod() + " " + ex.getRequestURI());
+        ex.getRequestHeaders().forEach((k,v) -> Log.info("SERVER", "  H: " + k + " = " + v));
         try {
             if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
                 ex.sendResponseHeaders(405, -1);
@@ -36,6 +38,10 @@ public class RemoteProxyServer {
 
             byte[] payload = ex.getRequestBody().readAllBytes();
             ProxyCodec.DecodedRequest decoded = ProxyCodec.decodeRequest(payload);
+
+            Log.info("SERVER", "Decoded request: " + decoded.method() + " " + decoded.targetUrl());
+            Log.info("SERVER", "Decoded body bytes: " + (decoded.body() == null ? 0 : decoded.body().length));
+            decoded.headers().forEach((k,v) -> Log.info("SERVER", "  DH: " + k + " = " + v));
 
             URI target = URI.create(decoded.targetUrl());
 
@@ -70,6 +76,9 @@ public class RemoteProxyServer {
 
             HttpResponse<byte[]> outResp = httpClient.send(outReq.build(), HttpResponse.BodyHandlers.ofByteArray());
 
+            Log.info("SERVER", "Upstream status=" + outResp.statusCode() +
+                    ", bytes=" + (outResp.body() == null ? 0 : outResp.body().length));
+
             Map<String, List<String>> respHeaders = new LinkedHashMap<>();
             outResp.headers().map().forEach((k, v) -> {
                 if (k == null) return;
@@ -86,6 +95,7 @@ public class RemoteProxyServer {
                 os.write(encodedResp);
             }
         } catch (Exception err) {
+            Log.error("SERVER", "Bad Gateway while processing /proxy", err);
             // Возвращаем 502 как proxy error
             ex.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
             byte[] msg = ("Bad Gateway: " + err.getClass().getSimpleName() + ": " + err.getMessage()).getBytes(java.nio.charset.StandardCharsets.UTF_8);
