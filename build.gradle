@@ -8,12 +8,11 @@ version = '1.0-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(19)
     }
 }
 
 application {
-    // по умолчанию не важно, запускать будем mainClass через --args
     mainClass = 'io.github.sibmaks.ClientProxy'
 }
 
@@ -29,4 +28,18 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+task runClientProxy(type: JavaExec, dependsOn: classes) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.github.sibmaks.ClientProxy'
+    if (project.hasProperty('listenPort')) args '--listenPort', project.listenPort
+    if (project.hasProperty('serverHost')) args '--serverHost', project.serverHost
+    if (project.hasProperty('serverPort')) args '--serverPort', project.serverPort
+}
+
+task runRemoteProxyServer(type: JavaExec, dependsOn: classes) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.github.sibmaks.RemoteProxyServer'
+    if (project.hasProperty('listenPort')) args '--listenPort', project.listenPort
 }

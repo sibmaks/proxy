@@ -1,0 +1,54 @@
+modules = ["java-graalvm22.3"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Remote Proxy Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Client Proxy"
+
+[[workflows.workflow]]
+name = "Remote Proxy Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "./gradlew runRemoteProxyServer -PlistenPort=9000 --no-daemon"
+waitForPort = 9000
+
+[[workflows.workflow]]
+name = "Client Proxy"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "./gradlew runClientProxy -PlistenPort=8080 -PserverHost=localhost -PserverPort=9000 --no-daemon"
+waitForPort = 8080
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 9000
+externalPort = 80
